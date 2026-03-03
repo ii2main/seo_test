@@ -34,6 +34,7 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+
     'dataforseo' => [
         'api_key' => env('DATAFORSEO_API_KEY'),
         'api_login' => env('DATAFORSEO_API_LOGIN'),
