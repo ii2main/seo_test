@@ -2,6 +2,8 @@
 
     namespace App\Http\Controllers;
 
+    use App\Http\Requests\User\UserCreateRequest;
+    use App\Http\Requests\User\UserLoginRequest;
     use App\Models\User;
     use Illuminate\Http\Request;
     use Illuminate\Support\Facades\Auth;
@@ -14,13 +16,9 @@
          * @param Request $request
          * @return \Illuminate\Http\RedirectResponse
          */
-        public function register(Request $request)
+        public function register(UserCreateRequest $request)
         {
-            $data = $request->validate([
-                'name' => 'required|string|max:255',
-                'email' => 'required|string|max:255|email:rfc,dns|unique:users,email',
-                'password' => 'required|string|min:8|confirmed',
-            ]);
+            $data = $request->validated();
 
             $user = User::create([
                 'name' => $data['name'],
@@ -31,23 +29,20 @@
             Auth::login($user);
             $request->session()->regenerate();
 
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended(route('ranks.index'));
         }
 
         /**
          * @param Request $request
          * @return \Illuminate\Http\RedirectResponse
          */
-        public function login(Request $request)
+        public function login(UserLoginRequest $request)
         {
-            $credentials = $request->validate([
-                'email' => 'required|string|email:rfc,dns',
-                'password' => 'required|string',
-            ]);
+            $credentials = $request->validated();
 
             if (Auth::attempt($credentials)) {
                 $request->session()->regenerate();
-                return redirect()->intended(route('dashboard'));
+                return redirect()->intended(route('ranks.index'));
             }
 
             throw ValidationException::withMessages([
