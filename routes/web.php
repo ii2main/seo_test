@@ -3,7 +3,7 @@
     use App\Http\Controllers\AuthController;
     use Illuminate\Support\Facades\Route;
 
-    Route::get('/', fn () => view('pages.ranks.index'));
+    Route::get('/', fn () => view('about'))->name('about');
 
     Route::middleware('guest')->group(function () {
         Route::get('/register', fn () => view('auth.register'))->name('register.form');

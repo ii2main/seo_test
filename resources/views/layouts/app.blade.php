@@ -93,6 +93,12 @@
             @auth
                 <ul class="navbar-nav mr-auto">
                     <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('about') ? 'active' : '' }}"
+                           href="{{ route('about') }}">
+                            About
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('ranks.index') ? 'active' : '' }}"
                            href="{{ route('ranks.index') }}">
                             Ranks
