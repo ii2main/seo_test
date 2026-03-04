@@ -7,7 +7,7 @@
         <h1 class="h3 mb-0">Domains</h1>
 
         <a href="{{ route('domains.create') }}" class="btn btn-primary">
-            Create domain
+            Add domain
         </a>
     </div>
 
@@ -24,7 +24,7 @@
             @if ($domains->count() === 0)
                 <div class="p-3">
                     <div class="text-muted">
-                        No domains yet. Click <strong>Create domain</strong> to add the first one.
+                        No domains yet. Click <strong>Add domain</strong> to add the first one.
                     </div>
                 </div>
             @else
@@ -34,7 +34,7 @@
                         <tr>
                             <th style="width: 90px;">ID</th>
                             <th>Domain</th>
-                            <th style="width: 210px;">Created</th>
+                            <th style="width: 210px;">Added</th>
                             <th style="width: 220px;" class="text-right">Actions</th>
                         </tr>
                         </thead>

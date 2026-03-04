@@ -35,6 +35,8 @@ return [
         ],
     ],
 
+    'rank_provider' => env('RANK_PROVIDER', 'dataforseo'),
+
     'dataforseo' => [
         'api_key' => env('DATAFORSEO_API_KEY'),
         'api_login' => env('DATAFORSEO_API_LOGIN'),

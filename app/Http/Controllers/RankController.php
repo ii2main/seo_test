@@ -2,6 +2,8 @@
 
     namespace App\Http\Controllers;
 
+    use App\Contracts\RankProviderInterface;
+    use App\DTO\Rank\RankQuery;
     use App\Http\Requests\Rank\RankCreateRequest;
     use App\Http\Resources\RankResource;
     use App\Models\Domain;
@@ -9,12 +11,14 @@
     use App\Models\Location;
     use App\Models\Rank;
     use Illuminate\Http\Request;
-    use GuzzleHttp\Client;
-    use Illuminate\Support\Facades\Log;
     use Illuminate\Validation\ValidationException;
 
     class RankController extends Controller
     {
+        public function __construct(private RankProviderInterface $provider)
+        {
+        }
+
         /**
          * @param Request $request
          * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\View\View
@@ -57,53 +61,27 @@
             $validated = $request->validated();
 
             $domainModel = Domain::query()->findOrFail($validated['domain_id']);
-            $locationModel = Location::query()->findOrFail($validated['location_id']);
-            $languageModel = Language::query()->findOrFail($validated['language_id']);
-
-            $client = new Client([
-                'timeout' => 60,
-                'connect_timeout' => 10,
-            ]);
-
-            $depth = config('services.dataforseo.depth');
+            $location_model = Location::query()->findOrFail($validated['location_id']);
+            $language_model = Language::query()->findOrFail($validated['language_id']);
 
             try {
-                $postResponse = $client->request('POST', 'https://api.dataforseo.com/v3/serp/google/organic/task_post', [
-                    'auth' => [config('services.dataforseo.api_login'), config('services.dataforseo.api_key')],
-                    'json' => [
-                        [
-                            'keyword' => (string) $validated['keyword'],
-                            'location_code' => (int) $locationModel->location_code,
-                            'language_code' => (string) $languageModel->language_code,
-                            'depth' => $depth,
-                        ],
-                    ],
-                ]);
+                $query = new RankQuery(
+                    keyword: (string) $validated['keyword'],
+                    location_code: (int) $location_model->location_code,
+                    language_code: (string) $language_model->language_code,
+                    depth: (int) config('services.dataforseo.depth')
+                );
 
-                $postData = json_decode($postResponse->getBody()->getContents(), true);
-
-                if (!is_array($postData) || (int)($postData['status_code'] ?? 0) !== 20000) {
-                    throw ValidationException::withMessages([
-                        'api' => [(string)($postData['status_message'] ?? 'DataForSEO: failed to create task.')],
-                    ]);
-                }
-
-                $taskId = $postData['tasks'][0]['id'] ?? null;
-                if (!$taskId) {
-                    throw ValidationException::withMessages([
-                        'api' => ['DataForSEO: task id not returned.'],
-                    ]);
-                }
+                $task = $this->provider->createTask($query);
 
                 $rank = Rank::create([
                     'domain_id' => $validated['domain_id'],
                     'location_id' => $validated['location_id'],
                     'language_id' => $validated['language_id'],
-
                     'keyword' => (string) $validated['keyword'],
-
-                    'task_id' => (string) $taskId,
+                    'task_id' => $task->task_id,
                     'status' => 'queued',
+                    'error_message' => null,
                 ]);
 
                 if ($request->expectsJson()) {
@@ -114,10 +92,10 @@
                     ->route('ranks.index')
                     ->with('success', 'Task created. Click "Get results" when it is ready.');
             } catch (ValidationException $e) {
-                throw $e; // піде в форму через $errors
+                throw $e; // піде в форму як $errors
             } catch (\Throwable $e) {
                 throw ValidationException::withMessages([
-                    'api' => ['Request to DataForSEO failed. Please try again later.'],
+                    'api' => ['Failed to create rank task. Please try again later.'],
                 ]);
             }
         }
@@ -130,55 +108,36 @@
         public function fetchResults(Request $request, Rank $rank)
         {
             if (!$rank->task_id) {
-                return redirect()
-                    ->route('ranks.index')
-                    ->with('error', 'This rank has no task id.');
+                return redirect()->route('ranks.index')->with('error', 'This rank has no task id.');
             }
 
             $rank->update(['status' => 'running', 'error_message' => null]);
 
-            $client = new Client([
-                'timeout' => 60,
-                'connect_timeout' => 10,
-            ]);
-
             try {
-                $response = $client->request('GET', "https://api.dataforseo.com/v3/serp/google/organic/task_get/regular/{$rank->task_id}", [
-                    'auth' => [config('services.dataforseo.api_login'), config('services.dataforseo.api_key')],
-                ]);
+                $result = $this->provider->fetchTaskResult($rank->task_id);
 
-                $data = json_decode($response->getBody()->getContents(), true);
-
-                if (!is_array($data) || (int)($data['status_code'] ?? 0) !== 20000) {
-                    $msg = (string)($data['status_message'] ?? 'DataForSEO: failed to get task result.');
-                    $rank->update(['status' => 'failed', 'error_message' => $msg]);
-                    return redirect()->route('ranks.index')->with('error', $msg);
+                if ($result->error_message) {
+                    $rank->update(['status' => 'failed', 'error_message' => $result->error_message]);
+                    return redirect()->route('ranks.index')->with('error', $result->error_message);
                 }
 
-                $task = $data['tasks'][0] ?? [];
-                $items = $task['result'][0]['items'] ?? null;
-
-                // Ще не готово (task_post повертає 20100, а тут може бути result null деякий час)
-                if (!is_array($items)) {
+                if (!$result->ready) {
                     $rank->update(['status' => 'queued']);
-                    return redirect()
-                        ->route('ranks.index')
-                        ->with('info', 'Result is not ready yet. Try again in a moment.');
+                    return redirect()->route('ranks.index')->with('info', 'Result is not ready yet. Try again in a moment.');
                 }
 
-                // Parse results
-                $domain_value = (string) optional($rank->domain)->domain;
+                $items = $result->items ?? [];
+                $domainValue = (string) optional($rank->domain)->domain;
 
                 $ranks = [];
                 foreach ($items as $item) {
                     if (!is_array($item)) continue;
-
                     if ((string)($item['type'] ?? '') !== 'organic') continue;
 
                     $itemDomain = (string)($item['domain'] ?? '');
                     $abs = $item['rank_absolute'] ?? null;
 
-                    if ($domain_value !== '' && $itemDomain !== '' && stripos($itemDomain, $domain_value) !== false && is_numeric($abs)) {
+                    if ($domainValue !== '' && $itemDomain !== '' && stripos($itemDomain, $domainValue) !== false && is_numeric($abs)) {
                         $ranks[] = (int) $abs;
                     }
                 }
@@ -193,32 +152,26 @@
                         'error_message' => 'Website not found in top results.',
                     ]);
 
-                    return redirect()
-                        ->route('ranks.index')
-                        ->with('info', 'Result ready, but the website was not found in top results.');
+                    return redirect()->route('ranks.index')->with('info', 'Result ready, but the website was not found in top results.');
                 }
 
-                $rank_min = min($ranks);
-                $rank_max = max($ranks);
-                $rank_avg = round(array_sum($ranks) / count($ranks), 2);
+                $rankMin = min($ranks);
+                $rankMax = max($ranks);
+                $rankAvg = round(array_sum($ranks) / count($ranks), 2);
 
                 $rank->update([
                     'status' => 'done',
-                    'rank_min' => $rank_min,
-                    'rank_max' => $rank_max,
-                    'rank_avg' => $rank_avg,
+                    'rank_min' => $rankMin,
+                    'rank_max' => $rankMax,
+                    'rank_avg' => $rankAvg,
                     'results_fetched_at' => now(),
                     'error_message' => null,
                 ]);
 
-                return redirect()
-                    ->route('ranks.index')
-                    ->with('success', 'Results fetched and saved.');
+                return redirect()->route('ranks.index')->with('success', 'Results fetched and saved.');
             } catch (\Throwable $e) {
                 $rank->update(['status' => 'failed', 'error_message' => 'Fetch failed.']);
-                return redirect()
-                    ->route('ranks.index')
-                    ->with('error', 'Failed to fetch results. Try again later.');
+                return redirect()->route('ranks.index')->with('error', 'Failed to fetch results. Try again later.');
             }
         }
 
@@ -256,90 +209,6 @@
             return redirect()
                 ->route('ranks.index')
                 ->with('success', 'Rank deleted successfully.');
-        }
-
-        /**
-         * @param Request $request
-         * @return \Illuminate\Http\RedirectResponse
-         */
-        public function refreshFromService(Request $request)
-        {
-            $ranks = $this->getRanks();
-
-            if (empty($ranks)) {
-                return redirect()
-                    ->route('ranks.index')
-                    ->with('error', 'Failed to fetch ranks from service.');
-            }
-
-            $now = now();
-            $rows = [];
-
-            foreach ($ranks as $item) {
-                $rows[] = [
-                    'rank_code' => $item['rank_code'] ?? null,
-                    'rank_name' => $item['rank_name'] ?? null,
-                    'rank_code_parent' => $item['rank_code_parent'] ?? null,
-                    'country_iso_code' => $item['country_iso_code'] ?? null,
-                    'rank_type' => $item['rank_type'] ?? null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-
-            // Приберемо биті рядки без обов'язкових полів
-            $rows = array_values(array_filter($rows, function (array $row) {
-                return $row['rank_code'] !== null
-                    && $row['rank_name'] !== null
-                    && $row['country_iso_code'] !== null;
-            }));
-
-            if (empty($rows)) {
-                return redirect()
-                    ->route('ranks.index')
-                    ->with('error', 'Service returned no valid rank rows.');
-            }
-
-            $chunk_size = 1000;
-            foreach (array_chunk($rows, $chunk_size) as $chunk) {
-                Rank::upsert(
-                    $chunk,
-                    ['rank_code'],
-                    ['rank_name', 'rank_code_parent', 'country_iso_code', 'rank_type', 'updated_at']
-                );
-            }
-
-            return redirect()
-                ->route('ranks.index')
-                ->with('success', 'Ranks refreshed: ' . count($rows) . ' rows processed.');
-        }
-
-        /**
-         * @return array
-         */
-        private function getRanks(): array
-        {
-            $client = new Client([
-                'timeout' => 30,
-                'connect_timeout' => 10,
-            ]);
-
-            $api_key = config('services.dataforseo.api_key');
-            $api_login = config('services.dataforseo.api_login');
-
-            try {
-                $response = $client->get('https://api.dataforseo.com/v3/serp/google/ranks', [
-                    'auth' => [$api_login, $api_key],
-                ]);
-
-                $payload = json_decode($response->getBody()->getContents(), true);
-
-                return $payload['tasks'][0]['result'] ?? [];
-            } catch (\Throwable $e) {
-                Log::error('Locales getting error: ' . $e->getMessage());
-
-                return [];
-            }
         }
 
     }
