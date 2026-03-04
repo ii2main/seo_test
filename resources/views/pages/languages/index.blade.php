@@ -10,10 +10,10 @@
             <form id="refresh-form" action="{{ route('languages.refresh') }}" method="POST" class="m-0">
                 @csrf
                 <button id="refresh-btn" type="submit" class="btn btn-outline-primary">
-                    <span class="btn-label">Refresh from service</span>
+                    <span class="btn-label">Get / Refresh</span>
                     <span class="btn-loading d-none">
                         <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
-                        Refreshing...
+                        Getting...
                     </span>
                 </button>
             </form>
@@ -37,7 +37,7 @@
             @if (empty($languages) || $languages->count() === 0)
                 <div class="p-3">
                     <div class="text-muted">
-                        No languages yet. Click <strong>Create language</strong> to add the first one.
+                        No languages yet. Click <strong>Get/Refresh</strong> for get all languages from service or <strong>Create</strong> to add the first one.
                     </div>
                 </div>
             @else
@@ -97,7 +97,7 @@
         if (!form || !btn) return;
 
         form.addEventListener('submit', function (e) {
-          if (!confirm('Refresh languages from service? This will update the table.')) {
+          if (!confirm('Getting languages from service? This will update the table.')) {
             e.preventDefault();
             return;
           }

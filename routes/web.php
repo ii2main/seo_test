@@ -13,18 +13,24 @@
         Route::post('/login', [AuthController::class, 'login'])->name('login');
     });
 
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
     Route::middleware('auth')->group(function () {
-        Route::get('/ranks', fn () => view('pages.ranks.index'))->name('ranks.index');
+        Route::post('/ranks/{rank}/fetch-results', [\App\Http\Controllers\RankController::class, 'fetchResults'])
+            ->name('ranks.fetch-results');
+        Route::resource('/ranks', \App\Http\Controllers\RankController::class)->except(['show', 'edit', 'update']);
 
         Route::resource('domains', \App\Http\Controllers\DomainController::class)->except(['show']);
 
+        Route::get('/locations/for-select', [\App\Http\Controllers\LocationController::class, 'getForSelect'])
+            ->name('locations.for-select');
         Route::post('/locations/refresh', [\App\Http\Controllers\LocationController::class, 'refreshFromService'])
             ->name('locations.refresh');
         Route::resource('locations', \App\Http\Controllers\LocationController::class)->except(['show']);
 
+        Route::get('/languages/for-select', [\App\Http\Controllers\LanguageController::class, 'getForSelect'])
+            ->name('languages.for-select');
         Route::post('/languages/refresh', [\App\Http\Controllers\LanguageController::class, 'refreshFromService'])
             ->name('languages.refresh');
         Route::resource('languages', \App\Http\Controllers\LanguageController::class)->except(['show']);
-
-        Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     });

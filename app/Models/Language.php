@@ -15,8 +15,8 @@
         /**
          * @return \Illuminate\Database\Eloquent\Relations\HasMany
          */
-        public function seoRanks(): \Illuminate\Database\Eloquent\Relations\HasMany
+        public function ranks(): \Illuminate\Database\Eloquent\Relations\HasMany
         {
-            return $this->hasMany(SeoRank::class);
+            return $this->hasMany(Rank::class);
         }
     }

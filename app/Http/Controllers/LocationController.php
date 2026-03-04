@@ -8,7 +8,6 @@
     use App\Models\Location;
     use Illuminate\Http\Request;
     use GuzzleHttp\Client;
-    use Illuminate\Support\Facades\DB;
     use Illuminate\Support\Facades\Log;
 
     class LocationController extends Controller
@@ -151,7 +150,7 @@
                 ];
             }
 
-            // Приберемо биті рядки без обов'язкових полів
+            // If there are no good data for all feilds we will remove it
             $rows = array_values(array_filter($rows, function (array $row) {
                 return $row['location_code'] !== null
                     && $row['location_name'] !== null
@@ -164,8 +163,8 @@
                     ->with('error', 'Service returned no valid location rows.');
             }
 
-            $chunkSize = 1000;
-            foreach (array_chunk($rows, $chunkSize) as $chunk) {
+            $chunk_size = 1000;
+            foreach (array_chunk($rows, $chunk_size) as $chunk) {
                 Location::upsert(
                     $chunk,
                     ['location_code'],
@@ -200,9 +199,44 @@
 
                 return $payload['tasks'][0]['result'] ?? [];
             } catch (\Throwable $e) {
-                Log::error('Locales getting error: ' . $e->getMessage());
+                Log::error('Locales getting error: ' . $e->getMessage() . '. Try later');
+
                 return [];
             }
+        }
+
+        /**
+         * @param Request $request
+         * @return \Illuminate\Http\JsonResponse
+         */
+        public function getForSelect(Request $request)
+        {
+            $q = trim((string) $request->query('q', ''));
+            $perPage = 20;
+
+            $query = Location::query()->orderBy('location_name');
+
+            if ($q !== '') {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('location_name', 'like', '%' . $q . '%')
+                        ->orWhere('country_iso_code', 'like', '%' . $q . '%')
+                        ->orWhere('location_code', 'like', '%' . $q . '%');
+                });
+            }
+
+            $paginator = $query->paginate($perPage);
+
+            $results = $paginator->getCollection()->map(function (Location $location) {
+                return [
+                    'id' => $location->id, // віддаємо id, а не location_code
+                    'text' => $location->location_name . ' (' . $location->country_iso_code . ', ' . $location->location_code . ')',
+                ];
+            })->values();
+
+            return response()->json([
+                'results' => $results,
+                'pagination' => ['more' => $paginator->hasMorePages()],
+            ]);
         }
 
     }

@@ -38,6 +38,7 @@ return [
     'dataforseo' => [
         'api_key' => env('DATAFORSEO_API_KEY'),
         'api_login' => env('DATAFORSEO_API_LOGIN'),
+        'depth' => env('DATAFORSEO_DEPTH', 10),
     ],
 
 ];

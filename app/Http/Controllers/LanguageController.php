@@ -155,8 +155,8 @@
                     ->with('error', 'Service returned no valid language rows.');
             }
 
-            $chunkSize = 1000;
-            foreach (array_chunk($rows, $chunkSize) as $chunk) {
+            $chunk_size = 1000;
+            foreach (array_chunk($rows, $chunk_size) as $chunk) {
                 Language::upsert(
                     $chunk,
                     ['language_code'],
@@ -192,10 +192,42 @@
 
                 return $payload['tasks'][0]['result'] ?? [];
             } catch (\Throwable $e) {
-                Log::error('Getting languages error: ' . $e->getMessage());
+                Log::error('Getting languages error: ' . $e->getMessage()) . '. Try later';
+
                 return [];
             }
         }
 
+        /**
+         * @param Request $request
+         * @return \Illuminate\Http\JsonResponse
+         */
+        public function getForSelect(Request $request)
+        {
+            $q = trim((string) $request->query('q', ''));
+            $perPage = 20;
 
+            $query = Language::query()->orderBy('language_name');
+
+            if ($q !== '') {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('language_name', 'like', '%' . $q . '%')
+                        ->orWhere('language_code', 'like', '%' . $q . '%');
+                });
+            }
+
+            $paginator = $query->paginate($perPage);
+
+            $results = $paginator->getCollection()->map(function (Language $language) {
+                return [
+                    'id' => $language->id, // важливо: віддаємо id, а не language_code
+                    'text' => $language->language_name . ' (' . $language->language_code . ')',
+                ];
+            })->values();
+
+            return response()->json([
+                'results' => $results,
+                'pagination' => ['more' => $paginator->hasMorePages()],
+            ]);
+        }
     }

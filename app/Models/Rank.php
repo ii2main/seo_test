@@ -4,18 +4,21 @@
 
     use Illuminate\Database\Eloquent\Model;
 
-    class SeoRank extends Model
+    class Rank extends Model
     {
-        protected $table = 'seo_ranks';
+        protected $table = 'ranks';
         protected $fillable = [
             'domain_id',
             'location_id',
             'language_id',
-            'rank',
-            'url',
-            'title',
-            'description',
-            'keywords',
+            'rank_min',
+            'rank_max',
+            'rank_avg',
+            'keyword',
+            'task_id',
+            'status',
+            'error_message',
+            'results_fetched_at',
         ];
 
         /**
