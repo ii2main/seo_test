@@ -1,65 +1,201 @@
 <?php
 
-namespace App\Http\Controllers;
+    namespace App\Http\Controllers;
 
-use App\Models\Language;
-use Illuminate\Http\Request;
+    use App\Http\Requests\Language\LanguageCreateRequest;
+    use App\Http\Requests\Language\LanguageUpdateRequest;
+    use App\Http\Resources\LanguageResource;
+    use App\Models\Language;
+    use GuzzleHttp\Client;
+    use Illuminate\Http\Request;
+    use Illuminate\Support\Facades\Log;
 
-class LanguageController extends Controller
-{
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    class LanguageController extends Controller
     {
-        //
-    }
+        /**
+         * @param Request $request
+         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\View\View
+         */
+        public function index(Request $request)
+        {
+            $languages = Language::query()
+                ->latest()
+                ->paginate(10)
+                ->withQueryString();
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
+            if ($request->expectsJson()) {
+                return LanguageResource::collection($languages);
+            }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+            return view('pages.languages.index', compact('languages'));
+        }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Language $language)
-    {
-        //
-    }
+        /**
+         * @param Request $request
+         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\View\View
+         */
+        public function create(Request $request)
+        {
+            return view('pages.languages.form');
+        }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Language $language)
-    {
-        //
-    }
+        /**
+         * @param LanguageCreateRequest $request
+         * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+         */
+        public function store(LanguageCreateRequest $request)
+        {
+            $validated = $request->validated();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Language $language)
-    {
-        //
-    }
+            $language = Language::create($validated);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Language $language)
-    {
-        //
+            if ($request->expectsJson()) {
+                return (new LanguageResource($language))->response()->setStatusCode(201);
+            }
+
+            return redirect()
+                ->route('languages.index')
+                ->with('success', 'Language created successfully.');
+        }
+
+        /**
+         * @param Request $request
+         * @param Language $language
+         * @return LanguageResource|\Illuminate\Http\RedirectResponse
+         */
+        public function show(Request $request, Language $language)
+        {
+            if ($request->expectsJson()) {
+                return new LanguageResource($language);
+            }
+
+            return redirect()->route('languages.index');
+        }
+
+        /**
+         * @param Request $request
+         * @param Language $language
+         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\View\View
+         */
+        public function edit(Request $request, Language $language)
+        {
+
+            return view('pages.languages.form', compact('language'));
+        }
+
+        /**
+         * @param LanguageUpdateRequest $request
+         * @param Language $language
+         * @return LanguageResource|\Illuminate\Http\RedirectResponse
+         */
+        public function update(LanguageUpdateRequest $request, Language $language)
+        {
+            $validated = $request->validated();
+
+            $language->update($validated);
+
+            if ($request->expectsJson()) {
+                return new LanguageResource($language->fresh());
+            }
+
+            return redirect()
+                ->route('languages.index')
+                ->with('success', 'Language updated successfully.');
+        }
+
+        /**
+         * @param Request $request
+         * @param Language $language
+         * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\Response
+         */
+        public function destroy(Request $request, Language $language)
+        {
+            $language->delete();
+
+            if ($request->expectsJson()) {
+                return response()->noContent();
+            }
+
+            return redirect()
+                ->route('languages.index')
+                ->with('success', 'Language deleted successfully.');
+        }
+
+        /**
+         * @param Request $request
+         * @return \Illuminate\Http\RedirectResponse
+         */
+        public function refreshFromService(Request $request)
+        {
+            $languages = $this->getLanguages();
+
+            if (empty($languages)) {
+                return redirect()
+                    ->route('languages.index')
+                    ->with('error', 'Failed to fetch languages from service.');
+            }
+
+            $rows = [];
+
+            foreach ($languages as $item) {
+                $rows[] = [
+                    'language_code' => $item['language_code'] ?? null,
+                    'language_name' => $item['language_name'] ?? null,
+                ];
+            }
+
+            // Filter out rows missing mandatory fields
+            $rows = array_values(array_filter($rows, function (array $row) {
+                return $row['language_code'] !== null && $row['language_name'] !== null;
+            }));
+
+            if (empty($rows)) {
+                return redirect()
+                    ->route('languages.index')
+                    ->with('error', 'Service returned no valid language rows.');
+            }
+
+            $chunkSize = 1000;
+            foreach (array_chunk($rows, $chunkSize) as $chunk) {
+                Language::upsert(
+                    $chunk,
+                    ['language_code'],
+                    ['language_name']
+                );
+            }
+
+            return redirect()
+                ->route('languages.index')
+                ->with('success', 'Languages refreshed: ' . count($rows) . ' rows processed.');
+        }
+
+
+        /**
+         * @return array
+         */
+        private function getLanguages(): array
+        {
+            $client = new Client([
+                'timeout' => 30,
+                'connect_timeout' => 10,
+            ]);
+
+            $apiKey = config('services.dataforseo.api_key');
+            $apiLogin = config('services.dataforseo.api_login');
+
+            try {
+                $response = $client->get('https://api.dataforseo.com/v3/serp/google/languages', [
+                    'auth' => [$apiLogin, $apiKey],
+                ]);
+
+                $payload = json_decode($response->getBody()->getContents(), true);
+
+                return $payload['tasks'][0]['result'] ?? [];
+            } catch (\Throwable $e) {
+                Log::error('Getting languages error: ' . $e->getMessage());
+                return [];
+            }
+        }
+
+
     }
-}
