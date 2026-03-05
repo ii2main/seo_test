@@ -29,7 +29,7 @@
             Auth::login($user);
             $request->session()->regenerate();
 
-            return redirect()->intended(route('ranks.index'));
+            return redirect()->intended(route('about'));
         }
 
         /**

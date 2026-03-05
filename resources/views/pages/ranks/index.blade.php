@@ -42,7 +42,7 @@
                             <th>Location</th>
                             <th>Language</th>
                             <th style="width: 140px;">Status</th>
-                            <th style="width: 180px;">Min/Avg/Max</th>
+                            <th style="width: 220px;">Result</th>
                             <th style="width: 260px;" class="text-right">Actions</th>
                         </tr>
                         </thead>
@@ -60,13 +60,23 @@
                                 </span>
                                 </td>
                                 <td>
-                                    @if ($rank->status === 'done' && $rank->rank_avg !== null)
-                                        {{ $rank->rank_min }} / {{ $rank->rank_avg }} / {{ $rank->rank_max }}
+                                    @if ($rank->status === 'done' && $rank->rank_min !== null)
+                                        <div class="font-weight-bold">
+                                            Best: {{ $rank->rank_min }}
+                                        </div>
+                                        <div class="text-muted small">
+                                            avg: {{ $rank->rank_avg ?? '—' }},
+                                            matches: {{ $rank->matches_count ?? 0 }}
+                                        </div>
                                     @else
                                         —
                                     @endif
                                 </td>
                                 <td class="text-right">
+                                    <a href="{{ route('ranks.show', $rank) }}" class="btn btn-sm btn-outline-secondary">
+                                        Details
+                                    </a>
+
                                     @if ($rank->task_id)
                                         <form action="{{ route('ranks.fetch-results', $rank) }}" method="POST" class="d-inline">
                                             @csrf
@@ -90,7 +100,7 @@
                             @if ($rank->error_message)
                                 <tr>
                                     <td></td>
-                                    <td colspan="4" class="text-muted small">
+                                    <td colspan="7" class="text-muted small">
                                         {{ $rank->error_message }}
                                     </td>
                                 </tr>

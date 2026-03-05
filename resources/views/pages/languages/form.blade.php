@@ -64,7 +64,7 @@
                                 name="language_code"
                                 value="{{ old('language_code', $language?->language_code) }}"
                                 class="form-control @error('language_code') is-invalid @enderror"
-                                placeholder="1"
+                                placeholder="en"
                                 required
                         >
                         @error('language_code')
@@ -72,9 +72,6 @@
                             <strong>{{ $message }}</strong>
                         </span>
                         @enderror
-{{--                        <small class="form-text text-muted">--}}
-{{--                            Some message--}}
-{{--                        </small>--}}
                     </div>
                 </div>
 

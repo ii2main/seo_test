@@ -4,7 +4,6 @@
 
     use App\Http\Requests\Location\LocationCreateRequest;
     use App\Http\Requests\Location\LocationUpdateRequest;
-    use App\Http\Resources\LocationResource;
     use App\Models\Location;
     use Illuminate\Http\Request;
     use GuzzleHttp\Client;
@@ -14,7 +13,7 @@
     {
         /**
          * @param Request $request
-         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\View\View
+         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\View\View
          */
         public function index(Request $request)
         {
@@ -22,10 +21,6 @@
                 ->latest()
                 ->paginate(10)
                 ->withQueryString();
-
-            if ($request->expectsJson()) {
-                return LocationResource::collection($locations);
-            }
 
             return view('pages.locations.index', compact('locations'));
         }
@@ -36,22 +31,19 @@
          */
         public function create(Request $request)
         {
+
             return view('pages.locations.form');
         }
 
         /**
          * @param LocationCreateRequest $request
-         * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function store(LocationCreateRequest $request)
         {
             $validated = $request->validated();
 
             $location = Location::create($validated);
-
-            if ($request->expectsJson()) {
-                return (new LocationResource($location))->response()->setStatusCode(201);
-            }
 
             return redirect()
                 ->route('locations.index')
@@ -61,13 +53,10 @@
         /**
          * @param Request $request
          * @param Location $location
-         * @return LocationResource|\Illuminate\Http\RedirectResponse
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function show(Request $request, Location $location)
         {
-            if ($request->expectsJson()) {
-                return new LocationResource($location);
-            }
 
             return redirect()->route('locations.index');
         }
@@ -86,17 +75,13 @@
         /**
          * @param LocationUpdateRequest $request
          * @param Location $location
-         * @return LocationResource|\Illuminate\Http\RedirectResponse
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function update(LocationUpdateRequest $request, Location $location)
         {
             $validated = $request->validated();
 
             $location->update($validated);
-
-            if ($request->expectsJson()) {
-                return new LocationResource($location->fresh());
-            }
 
             return redirect()
                 ->route('locations.index')
@@ -106,15 +91,11 @@
         /**
          * @param Request $request
          * @param Location $location
-         * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\Response
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function destroy(Request $request, Location $location)
         {
             $location->delete();
-
-            if ($request->expectsJson()) {
-                return response()->noContent();
-            }
 
             return redirect()
                 ->route('locations.index')

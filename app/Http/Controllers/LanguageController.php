@@ -4,7 +4,6 @@
 
     use App\Http\Requests\Language\LanguageCreateRequest;
     use App\Http\Requests\Language\LanguageUpdateRequest;
-    use App\Http\Resources\LanguageResource;
     use App\Models\Language;
     use GuzzleHttp\Client;
     use Illuminate\Http\Request;
@@ -14,7 +13,7 @@
     {
         /**
          * @param Request $request
-         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\View\View
+         * @return \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\View\View
          */
         public function index(Request $request)
         {
@@ -22,10 +21,6 @@
                 ->latest()
                 ->paginate(10)
                 ->withQueryString();
-
-            if ($request->expectsJson()) {
-                return LanguageResource::collection($languages);
-            }
 
             return view('pages.languages.index', compact('languages'));
         }
@@ -41,17 +36,13 @@
 
         /**
          * @param LanguageCreateRequest $request
-         * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function store(LanguageCreateRequest $request)
         {
             $validated = $request->validated();
 
             $language = Language::create($validated);
-
-            if ($request->expectsJson()) {
-                return (new LanguageResource($language))->response()->setStatusCode(201);
-            }
 
             return redirect()
                 ->route('languages.index')
@@ -61,13 +52,10 @@
         /**
          * @param Request $request
          * @param Language $language
-         * @return LanguageResource|\Illuminate\Http\RedirectResponse
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function show(Request $request, Language $language)
         {
-            if ($request->expectsJson()) {
-                return new LanguageResource($language);
-            }
 
             return redirect()->route('languages.index');
         }
@@ -86,17 +74,13 @@
         /**
          * @param LanguageUpdateRequest $request
          * @param Language $language
-         * @return LanguageResource|\Illuminate\Http\RedirectResponse
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function update(LanguageUpdateRequest $request, Language $language)
         {
             $validated = $request->validated();
 
             $language->update($validated);
-
-            if ($request->expectsJson()) {
-                return new LanguageResource($language->fresh());
-            }
 
             return redirect()
                 ->route('languages.index')
@@ -106,15 +90,11 @@
         /**
          * @param Request $request
          * @param Language $language
-         * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\Response
+         * @return \Illuminate\Http\RedirectResponse
          */
         public function destroy(Request $request, Language $language)
         {
             $language->delete();
-
-            if ($request->expectsJson()) {
-                return response()->noContent();
-            }
 
             return redirect()
                 ->route('languages.index')
@@ -168,7 +148,6 @@
                 ->route('languages.index')
                 ->with('success', 'Languages refreshed: ' . count($rows) . ' rows processed.');
         }
-
 
         /**
          * @return array

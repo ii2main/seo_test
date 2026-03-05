@@ -11,6 +11,7 @@
             'domain_id',
             'location_id',
             'language_id',
+            'items_count',
             'rank_min',
             'rank_max',
             'rank_avg',
@@ -43,6 +44,14 @@
         public function language(): \Illuminate\Database\Eloquent\Relations\BelongsTo
         {
             return $this->belongsTo(Language::class);
+        }
+
+        /**
+         * @return \Illuminate\Database\Eloquent\Relations\HasMany
+         */
+        public function rankDetails(): \Illuminate\Database\Eloquent\Relations\HasMany
+        {
+            return $this->hasMany(RankDetail::class);
         }
 
     }

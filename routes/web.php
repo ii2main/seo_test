@@ -18,7 +18,7 @@
     Route::middleware('auth')->group(function () {
         Route::post('/ranks/{rank}/fetch-results', [\App\Http\Controllers\RankController::class, 'fetchResults'])
             ->name('ranks.fetch-results');
-        Route::resource('/ranks', \App\Http\Controllers\RankController::class)->except(['show', 'edit', 'update']);
+        Route::resource('/ranks', \App\Http\Controllers\RankController::class)->except(['edit', 'update']);
 
         Route::resource('domains', \App\Http\Controllers\DomainController::class)->except(['show']);
 
